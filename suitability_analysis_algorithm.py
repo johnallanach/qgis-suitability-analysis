@@ -13,32 +13,16 @@
 
 from qgis.PyQt.QtCore import QCoreApplication
 from qgis.core import (QgsProcessing,
-                       QgsFeatureSink,
                        QgsProcessingAlgorithm,
-                       QgsProcessingParameterFeatureSource,
-                       QgsProcessingParameterFeatureSink)
+                       QgsProcessingParameterVectorLayer,
+                       QgsProcessingParameterFeatureSink,
+                       QgsProcessingParameterNumber,
+                       QgsProcessingMultiStepFeedback)
+
+import processing
 
 
 class SuitabilityAnalysisAlgorithm(QgsProcessingAlgorithm):
-    """
-    This is an example algorithm that takes a vector layer and
-    creates a new identical one.
-
-    It is meant to be used as an example of how to create your own
-    algorithms and explain methods and variables used to do it. An
-    algorithm like this will be available in all elements, and there
-    is not need for additional work.
-
-    All Processing algorithms should extend the QgsProcessingAlgorithm
-    class.
-    """
-
-    # Constants used to refer to parameters and outputs. They will be
-    # used when calling the algorithm from another algorithm, or when
-    # calling from the QGIS console.
-
-    OUTPUT = 'OUTPUT'
-    INPUT = 'INPUT'
 
     def initAlgorithm(self, config):
         """
@@ -46,13 +30,13 @@ class SuitabilityAnalysisAlgorithm(QgsProcessingAlgorithm):
         with some other properties.
         """
 
-        # We add the input vector features source. It can have any kind of
-        # geometry.
+        # We add the input vector features source. 
         self.addParameter(
-            QgsProcessingParameterFeatureSource(
-                self.INPUT,
-                self.tr('Input layer'),
-                [QgsProcessing.TypeVectorAnyGeometry]
+            QgsProcessingParameterVectorLayer(
+                'input', 
+                'Input Layer', 
+                types=[QgsProcessing.TypeVectorPoint], 
+                defaultValue=None
             )
         )
 
@@ -61,46 +45,64 @@ class SuitabilityAnalysisAlgorithm(QgsProcessingAlgorithm):
         # algorithm is run in QGIS).
         self.addParameter(
             QgsProcessingParameterFeatureSink(
-                self.OUTPUT,
-                self.tr('Output layer')
+                'Output', 
+                'Suitability Output', 
+                type=QgsProcessing.TypeVectorAnyGeometry, 
+                createByDefault=True, 
+                supportsAppend=True, 
+                defaultValue=None
             )
         )
 
-    def processAlgorithm(self, parameters, context, feedback):
+        self.addParameter(
+            QgsProcessingParameterNumber(
+                'Weight', 
+                'Feature Weight', 
+                type=QgsProcessingParameterNumber.Double, 
+                minValue=-1.79769e+308, 
+                maxValue=1.79769e+308, 
+                defaultValue=1
+            )
+        )
+
+    def processAlgorithm(self, parameters, context, model_feedback):
         """
         Here is where the processing itself takes place.
         """
 
-        # Retrieve the feature source and sink. The 'dest_id' variable is used
-        # to uniquely identify the feature sink, and must be included in the
-        # dictionary returned by the processAlgorithm function.
-        source = self.parameterAsSource(parameters, self.INPUT, context)
-        (sink, dest_id) = self.parameterAsSink(parameters, self.OUTPUT,
-                context, source.fields(), source.wkbType(), source.sourceCrs())
+        # Use a multi-step feedback, so that individual child algorithm progress reports are adjusted for the
+        # overall progress through the model
+        model_steps = 1
+        feedback = QgsProcessingMultiStepFeedback(model_steps, model_feedback)
+        results = {}
+        outputs = {}
 
-        # Compute the number of steps to display within the progress bar and
-        # get features from source
-        total = 100.0 / source.featureCount() if source.featureCount() else 0
-        features = source.getFeatures()
+        alg_params = {
+            'INPUT': parameters['input'],
+            'FIELD_NAME':'calculated', # CHANGE ACCORDING TO INPUT FIELD
+            'FIELD_TYPE':0, # FLOAT TYPE
+            'FIELD_LENGTH':0,
+            'FIELD_PRECISION':0,
+            'FORMULA':' \"noise_km\" * ' + str(parameters['Weight']),
+            'OUTPUT': parameters['Output']
+            }
 
-        for current, feature in enumerate(features):
-            # Stop the algorithm if cancel button has been clicked
-            if feedback.isCanceled():
-                break
+        outputs['FieldCalculator'] = processing.run(
+            'native:fieldcalculator', 
+            alg_params, 
+            context=context, 
+            feedback=feedback, 
+            is_child_algorithm=True)
 
-            # Add a feature in the sink
-            sink.addFeature(feature, QgsFeatureSink.FastInsert)
+        feedback.setCurrentStep(1)
+        if feedback.isCanceled():
+            return {}
 
-            # Update the progress bar
-            feedback.setProgress(int(current * total))
+        results['Output'] = outputs['FieldCalculator']['OUTPUT']
 
-        # Return the results of the algorithm. In this case our only result is
-        # the feature sink which contains the processed features, but some
-        # algorithms may return multiple feature sinks, calculated numeric
-        # statistics, etc. These should all be included in the returned
-        # dictionary, with keys matching the feature corresponding parameter
-        # or output names.
-        return {self.OUTPUT: dest_id}
+        # Return the results of the algorithm. 
+        return results     
+
 
     def name(self):
         """
