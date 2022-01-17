@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
-
 """
 /***************************************************************************
- SuitabilityAnalysis
+ SuitabilityRanker
+ A QGIS plugin
  Vector-based site suitability analysis
-                              -------------------
+
         copyright            : (C) 2022 by John Allanach
-        email                : j8hnallanach@gmail.com
+        email                : j8hnallnach@gmail.com
  ***************************************************************************/
 """
+
 
 # noinspection PyPep8Naming
 def classFactory(iface):  # pylint: disable=invalid-name
@@ -18,5 +19,5 @@ def classFactory(iface):  # pylint: disable=invalid-name
     :type iface: QgsInterface
     """
     #
-    from .suitability_analysis import SuitabilityAnalysisPlugin
-    return SuitabilityAnalysisPlugin()
+    from .suitability_analysis import SuitabilityAnalysis
+    return SuitabilityAnalysis(iface)
