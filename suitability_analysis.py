@@ -172,22 +172,11 @@ class SuitabilityAnalysis:
                 action)
             self.iface.removeToolBarIcon(action)
 
+"""
+/***************************************************************************
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ ***************************************************************************/
+"""
 
     def updateFields(self):
         """Reload the available fields when layer is changed"""
@@ -196,7 +185,6 @@ class SuitabilityAnalysis:
         self.dlg.fieldTable.clearContents()
         self.dlg.fieldSelector.addItems([str(x.name()) for x in
             self.dlg.layerInput.currentLayer().fields() if x.isNumeric()])
-
 
     def populateFields(self):
         """Populate QTableWidget that shows the fields to be analysed. 
@@ -218,12 +206,6 @@ class SuitabilityAnalysis:
         """code here to 1) populate default lower and upper threshold
         values and 2) populate default weights = 1 """
 
-
-
-
-
-
-
     def validateWeights(self):
         """Checks that input weights sum to 100"""
 
@@ -242,7 +224,6 @@ class SuitabilityAnalysis:
 
         return True
 
-
     def createTempFields(self):
         """Creates temporary calculation fields"""
 
@@ -257,7 +238,6 @@ class SuitabilityAnalysis:
             with edit(layer):
                 vpr.addAttributes([QgsField(mirror_field_name, QVariant.Double)])
                 layer.updateFields()
-
 
     def standardizeFields(self):
         """Main calculations to standardize the selected fields"""
@@ -276,14 +256,6 @@ class SuitabilityAnalysis:
                     feature.setAttribute(feature.fieldNameIndex(mirror_field_name), 
                         (feature[field_name]-minValue)/(maxValue-minValue))
                     layer.updateFeature(feature) 
-
-
-
-
-
-
-
-
 
     def run(self):
         """Run method that performs all the real work"""

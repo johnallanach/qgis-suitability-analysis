@@ -7,4 +7,7 @@ version=0.1
 author=John Allanach
 email=j8hnallanach@gmail.com
 about=A Qgis plugin for analysing vector-based site suitability given multiple weighted criteria.
+tags=vector,analysis,suitability
 repository=https://github.com/johnallanach/qgis-suitability-analysis
+experimental=True
+deprecated=False
