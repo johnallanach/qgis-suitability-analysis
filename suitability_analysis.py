@@ -163,6 +163,8 @@ class SuitabilityAnalysis:
         # will be set False in run()
         self.first_start = True
 
+        #self.dlg.pushButton.clicked.connect(self.run1)
+
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
@@ -172,11 +174,13 @@ class SuitabilityAnalysis:
                 action)
             self.iface.removeToolBarIcon(action)
 
-"""
-/***************************************************************************
 
- ***************************************************************************/
-"""
+
+
+
+
+
+
 
     def updateFields(self):
         """Reload the available fields when layer is changed"""
@@ -196,11 +200,23 @@ class SuitabilityAnalysis:
             self.dlg.fieldTable.clearContents()
             self.dlg.fieldTable.setRowCount(len(selected_fields))
 
+            layer = self.dlg.layerInput.currentLayer()
+
             for current, i in enumerate(selected_fields):
-                new_field = QTableWidgetItem(str(i.text()))
+                field_name = str(i.text())
+                field_widgetItem = QTableWidgetItem(str(i.text()))
+                field_index = layer.fields().lookupField(field_name)
+                maxValue = layer.maximumValue(field_index)
+                minValue = layer.minimumValue(field_index)
+                
+                lower = QTableWidgetItem(str( minValue ))
+                upper = QTableWidgetItem(str( maxValue ))
                 weight = QTableWidgetItem(str( 100 / len(selected_fields )))
-                new_field.setFlags(flags)
-                self.dlg.fieldTable.setItem(current, 0, new_field)
+
+                field_widgetItem.setFlags(flags)
+                self.dlg.fieldTable.setItem(current, 0, field_widgetItem)
+                self.dlg.fieldTable.setItem(current, 1, lower)
+                self.dlg.fieldTable.setItem(current, 2, upper)
                 self.dlg.fieldTable.setItem(current, 3, weight)
         
         """code here to 1) populate default lower and upper threshold
@@ -273,11 +289,16 @@ class SuitabilityAnalysis:
         self.dlg.fieldSelector.addItems([str(x.name()) for x in 
             self.dlg.layerInput.currentLayer().fields() if x.isNumeric()])
 
+        # update fields when active layer changed
         self.dlg.layerInput.layerChanged.connect(self.updateFields)
 
         self.dlg.fieldSelector.setSelectionMode(QAbstractItemView.MultiSelection)
-
+        
+        # populate table with selected fields
         self.dlg.addFields.clicked.connect(self.populateFields)
+
+        # reset form
+        self.dlg.addFields_2.clicked.connect(self.updateFields)
 
         # Run the dialog event loop
         result = self.dlg.exec_()
