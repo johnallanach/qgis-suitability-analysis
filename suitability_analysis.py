@@ -187,8 +187,10 @@ class SuitabilityAnalysis:
 
         self.dlg.fieldSelector.clear()
         self.dlg.fieldTable.clearContents()
+        self.dlg.fieldTable.setRowCount(0)
         self.dlg.fieldSelector.addItems([str(x.name()) for x in
             self.dlg.layerInput.currentLayer().fields() if x.isNumeric()])
+
 
     def populateFields(self):
         """Populate QTableWidget that shows the fields to be analysed. 
@@ -204,23 +206,21 @@ class SuitabilityAnalysis:
 
             for current, i in enumerate(selected_fields):
                 field_name = str(i.text())
-                field_widgetItem = QTableWidgetItem(str(i.text()))
                 field_index = layer.fields().lookupField(field_name)
                 maxValue = layer.maximumValue(field_index)
                 minValue = layer.minimumValue(field_index)
                 
-                lower = QTableWidgetItem(str( minValue ))
-                upper = QTableWidgetItem(str( maxValue ))
-                weight = QTableWidgetItem(str( 100 / len(selected_fields )))
+                field = QTableWidgetItem( field_name )
+                lower = QTableWidgetItem(str( round( minValue, 2)))
+                upper = QTableWidgetItem(str( round( maxValue,2 )))
+                weight = QTableWidgetItem(str( round( 100 / len( selected_fields ), 2 )))
 
-                field_widgetItem.setFlags(flags)
-                self.dlg.fieldTable.setItem(current, 0, field_widgetItem)
+                field.setFlags(flags)
+                self.dlg.fieldTable.setItem(current, 0, field)
                 self.dlg.fieldTable.setItem(current, 1, lower)
                 self.dlg.fieldTable.setItem(current, 2, upper)
                 self.dlg.fieldTable.setItem(current, 3, weight)
-        
-        """code here to 1) populate default lower and upper threshold
-        values and 2) populate default weights = 1 """
+
 
     def validateWeights(self):
         """Checks that input weights sum to 100"""
@@ -239,6 +239,27 @@ class SuitabilityAnalysis:
             return False
 
         return True
+    
+
+    def trimThresholds(self):
+        """Removes features that are below or above the
+        lower or upper thresholds, respectively"""
+
+        layer = self.dlg.layerInput.currentLayer()
+        vpr = layer.dataProvider()
+
+        for row in range(self.dlg.fieldTable.rowCount()):
+            field_name = self.dlg.fieldTable.item(row,0).text()
+            lower = int(self.dlg.fieldTable.item(row,1).text())
+            upper = int(self.dlg.fieldTable.item(row,2).text())
+
+            with edit(layer):
+                for feature in layer.getFeatures():
+                    feature_value = feature[field_name]
+                    if (feature_value > upper or 
+                        feature_value < lower):
+                        vpr.deleteFeatures([feature.id()])
+
 
     def createTempFields(self):
         """Creates temporary calculation fields"""
@@ -254,6 +275,7 @@ class SuitabilityAnalysis:
             with edit(layer):
                 vpr.addAttributes([QgsField(mirror_field_name, QVariant.Double)])
                 layer.updateFields()
+
 
     def standardizeFields(self):
         """Main calculations to standardize the selected fields"""
@@ -272,6 +294,7 @@ class SuitabilityAnalysis:
                     feature.setAttribute(feature.fieldNameIndex(mirror_field_name), 
                         (feature[field_name]-minValue)/(maxValue-minValue))
                     layer.updateFeature(feature) 
+
 
     def run(self):
         """Run method that performs all the real work"""
@@ -300,14 +323,17 @@ class SuitabilityAnalysis:
         # reset form
         self.dlg.addFields_2.clicked.connect(self.updateFields)
 
+        #self.dlg.fieldTable.item(row,3).itemChanged.connect(self.updateFields)
+
         # Run the dialog event loop
         result = self.dlg.exec_()
         # See if OK was pressed
         if result:
 
             #if self.validateWeights() == True:
-            self.createTempFields()
-            self.standardizeFields()
+            self.trimThresholds()
+            #self.createTempFields()
+            #self.standardizeFields()
             
             iface.messageBar().pushMessage("Success",
                 "Suitability analysis complete.",
