@@ -25,6 +25,7 @@ from .suitability_analysis_dialog import SuitabilityAnalysisDialog
 import os.path
 
 import numpy as np
+import time
 
 
 class SuitabilityAnalysis:
@@ -237,10 +238,6 @@ class SuitabilityAnalysis:
 
         for row in range(self.dlg.fieldTable.rowCount()):
             indicator = self.dlg.fieldTable.item(row,0).text()
-            #lower = int(float(self.dlg.fieldTable.item(row,1).text()))
-            #upper = int(float(self.dlg.fieldTable.item(row,2).text()))
-            #weight = int(float(self.dlg.fieldTable.item(row,3).text()))
-            #influence = self.dlg.fieldTable.item(row,4).text()
 
             criteria[indicator] = {
                 "lower": int(float(self.dlg.fieldTable.item(row,1).text())),
@@ -248,6 +245,8 @@ class SuitabilityAnalysis:
                 "weight": int(float(self.dlg.fieldTable.item(row,3).text())),
                 "influence": self.dlg.fieldTable.item(row,4).text()
             }
+        
+        return criteria
 
 
     def layerToNumpy(self):
@@ -273,11 +272,11 @@ class SuitabilityAnalysis:
             return False
 
         return True
-    
+
 
     def trimThresholds(self):
         """Removes features that are below or above the
-        lower or upper thresholds, respectively"""
+        lower or upper thresholds"""
 
         layer = self.dlg.layerInput.currentLayer()
         vpr = layer.dataProvider()
@@ -289,7 +288,7 @@ class SuitabilityAnalysis:
 
             with edit(layer):
                 for feature in layer.getFeatures():
-                    feature_value = feature[indicator]
+                    feature_value = int(float(feature[indicator]))
                     if (feature_value > upper or 
                         feature_value < lower):
                         vpr.deleteFeatures([feature.id()])
@@ -304,10 +303,10 @@ class SuitabilityAnalysis:
         for row in range(self.dlg.fieldTable.rowCount()):
             indicator = self.dlg.fieldTable.item(row,0).text()
             #field_index = layer.fields().lookupField(field_name)
-            field_name_score = indicator + "_s"              
+            score_field = indicator + "_s"              
 
             with edit(layer):
-                vpr.addAttributes([QgsField(field_name_score, QVariant.Double)])
+                vpr.addAttributes([QgsField(score_field, QVariant.Double)])
                 layer.updateFields()
 
 
@@ -315,12 +314,10 @@ class SuitabilityAnalysis:
         """Main calculations to standardize the selected fields"""
 
         layer = self.dlg.layerInput.currentLayer()
-        #vpr = layer.dataProvider()
-        #vpr.addAttributes([QgsField('Score', QVariant.Double)])
 
         for row in range(self.dlg.fieldTable.rowCount()):
             indicator = self.dlg.fieldTable.item(row,0).text()
-            field_name_score = indicator + "_s"  
+            score_field = indicator + "_s"  
             field_index = layer.fields().lookupField(indicator)
             maxValue = layer.maximumValue(field_index)
             minValue = layer.minimumValue(field_index)  
@@ -328,21 +325,19 @@ class SuitabilityAnalysis:
             weight = float(self.dlg.fieldTable.item(row,3).text())  
             influence = self.dlg.fieldTable.item(row,4).text()           
 
-            #aggregate_score = 0 
-
             with edit(layer):
                 if influence == "+":
                     for feature in layer.getFeatures():
                         score = float((feature[indicator]-minValue)/(maxValue-minValue))
                         weighted_score = score * weight
-                        feature.setAttribute(feature.fieldNameIndex(field_name_score), 
+                        feature.setAttribute(feature.fieldNameIndex(score_field), 
                             weighted_score)
                         layer.updateFeature(feature) 
                 elif influence == "-":
                     for feature in layer.getFeatures():
                         score = float((maxValue-feature[indicator])/(maxValue-minValue))
                         weighted_score = score * weight
-                        feature.setAttribute(feature.fieldNameIndex(field_name_score), 
+                        feature.setAttribute(feature.fieldNameIndex(score_field), 
                             weighted_score)
                         layer.updateFeature(feature) 
                 else:
@@ -353,17 +348,29 @@ class SuitabilityAnalysis:
         """"""
         layer = self.dlg.layerInput.currentLayer()
         vpr = layer.dataProvider()
+
+        score_field_list  = []
+        
+        for row in range(self.dlg.fieldTable.rowCount()):
+            indicator = self.dlg.fieldTable.item(row,0).text()
+            score_field = indicator + "_s"  
+            score_field_list.append(score_field)
              
         with edit(layer):
-            vpr.addAttributes([QgsField('Score', QVariant.Double)])
-            for feature in layer.getFeatures():
-                aggregate_score = []
-                feature.setAttribute(feature.fieldNameIndex('Score'), 
-                            aggregate_score)
-                layer.updateFeature(feature)
+            vpr.addAttributes([QgsField('score', QVariant.Double)])
             layer.updateFields()
 
-        pass
+            for feature in layer.getFeatures():
+                aggregate_score = 0
+                for i_score in score_field_list: 
+                    score = feature.attribute(feature.fieldNameIndex(i_score))
+                    aggregate_score += score
+
+                feature.setAttribute(feature.fieldNameIndex('score'), 
+                            aggregate_score)
+                layer.updateFeature(feature)
+
+            layer.updateFields()
 
 
     def calculateFinalRank(self):
@@ -386,6 +393,8 @@ class SuitabilityAnalysis:
 
     def run(self):
         """Run method that performs all the real work"""
+
+        startTime = time.time()
 
         # Create the dialog with elements (after translation) and keep reference
         # Only create GUI ONCE in callback, so that it will only load when the plugin is started
@@ -419,16 +428,18 @@ class SuitabilityAnalysis:
         if result:
 
             #if self.validateWeights() == True:
-            self.fetchCriteria()
-            #self.trimThresholds()
-            #self.createTempFields()
-            #self.standardizeFields()
+            #self.fetchCriteria()
+            self.trimThresholds()
+            self.createTempFields()
+            self.standardizeFields()
             #self.applyScoreWeights()
-            #self.calculateAggregateScore()
+            self.calculateAggregateScore()
             #self.calculateFinalRank()
             #self.deleteTempFields()
             
+            executionTime = str(time.time() - startTime)
+
             iface.messageBar().pushMessage("Success",
-                "Suitability analysis complete.",
+                "Suitability analysis completed in " + executionTime + " seconds.",
                 level = Qgis.Success,
                 duration = 10)
