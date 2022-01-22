@@ -379,16 +379,37 @@ class SuitabilityAnalysis:
         vpr = layer.dataProvider()
              
         with edit(layer):
-            vpr.addAttributes([QgsField('Rank', QVariant.Double)])
-            # CALCULATIONS 
+            vpr.addAttributes([QgsField('rank', QVariant.Double)])
             layer.updateFields()
 
-        pass
+            # create list of tuples of score and feature-id
+            feat_list = [( feat.attribute(feat.fieldNameIndex('score') ), 
+                            feat.id()) for feat in layer.getFeatures()]
+            feat_list.sort()  # sort list of tuples
+
+            i = 1
+            fni = vpr.fieldNameIndex('rank')  # get fieldindex
+            
+            for feat in feat_list:
+                layer.changeAttributeValue(feat[1], fni, i)  # change field value
+                i += 1
 
 
     def deleteTempFields(self):
         """"""
-        pass
+        layer = self.dlg.layerInput.currentLayer()
+        vpr = layer.dataProvider()
+
+        sfi_list  = []
+        
+        for row in range(self.dlg.fieldTable.rowCount()):
+            indicator = self.dlg.fieldTable.item(row,0).text()
+            score_field = indicator + "_s"  
+            score_field_index = vpr.fieldNameIndex(score_field)
+            sfi_list.append(score_field_index)
+
+        vpr.deleteAttributes(sfi_list)
+        layer.updateFields()
 
 
     def run(self):
@@ -432,14 +453,13 @@ class SuitabilityAnalysis:
             self.trimThresholds()
             self.createTempFields()
             self.standardizeFields()
-            #self.applyScoreWeights()
             self.calculateAggregateScore()
-            #self.calculateFinalRank()
-            #self.deleteTempFields()
+            self.calculateFinalRank()
+            self.deleteTempFields()
             
-            executionTime = str(time.time() - startTime)
+            executionTime = str(round((time.time() - startTime), 2))
 
             iface.messageBar().pushMessage("Success",
-                "Suitability analysis completed in " + executionTime + " seconds.",
+                "Suitability analysis completed in " + executionTime + " ms.",
                 level = Qgis.Success,
                 duration = 10)
