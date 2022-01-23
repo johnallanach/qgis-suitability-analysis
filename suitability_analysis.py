@@ -6,7 +6,7 @@
  Vector-based site suitability analysis
 
         copyright            : (C) 2022 by John Allanach
-        email                : j8hnallnach@gmail.com
+        email                : johnallanach@protonmail.com
  ***************************************************************************/
 """
 
@@ -249,12 +249,6 @@ class SuitabilityAnalysis:
         return criteria
 
 
-    def layerToNumpy(self):
-        """"""
-
-        pass
-
-
     def validateWeights(self):
         """Checks that input weights sum to 100"""
 
@@ -302,7 +296,6 @@ class SuitabilityAnalysis:
 
         for row in range(self.dlg.fieldTable.rowCount()):
             indicator = self.dlg.fieldTable.item(row,0).text()
-            #field_index = layer.fields().lookupField(field_name)
             score_field = indicator + "_s"              
 
             with edit(layer):
@@ -345,7 +338,7 @@ class SuitabilityAnalysis:
             
 
     def calculateAggregateScore(self):
-        """"""
+        """sums the individual field scores"""
         layer = self.dlg.layerInput.currentLayer()
         vpr = layer.dataProvider()
 
@@ -374,7 +367,7 @@ class SuitabilityAnalysis:
 
 
     def calculateFinalRank(self):
-        """"""
+        """final ordinal ranking"""
         layer = self.dlg.layerInput.currentLayer()
         vpr = layer.dataProvider()
              
@@ -396,7 +389,7 @@ class SuitabilityAnalysis:
 
 
     def deleteTempFields(self):
-        """"""
+        """deletes the _s fields"""
         layer = self.dlg.layerInput.currentLayer()
         vpr = layer.dataProvider()
 
@@ -413,7 +406,7 @@ class SuitabilityAnalysis:
 
 
     def run(self):
-        """Run method that performs all the real work"""
+        """run method that performs all the real work"""
 
         startTime = time.time()
 

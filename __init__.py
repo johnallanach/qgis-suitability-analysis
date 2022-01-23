@@ -6,7 +6,7 @@
  Vector-based site suitability analysis
 
         copyright            : (C) 2022 by John Allanach
-        email                : j8hnallnach@gmail.com
+        email                : johnallanach@protonmail.com
  ***************************************************************************/
 """
 
