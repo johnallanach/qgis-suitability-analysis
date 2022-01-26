@@ -1,2 +1,2 @@
 # qgis-suitability-analysis
- Vector-based site suitability analysis for Qgis
+ A vector-based suitability analysis plugin for Qgis
