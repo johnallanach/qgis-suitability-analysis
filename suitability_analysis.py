@@ -378,7 +378,7 @@ class SuitabilityAnalysis:
             # create list of tuples of score and feature-id
             feat_list = [( feat.attribute(feat.fieldNameIndex('score') ), 
                             feat.id()) for feat in layer.getFeatures()]
-            feat_list.sort()  # sort list of tuples
+            feat_list.sort(reverse=True)  # sort list of tuples
 
             i = 1
             fni = vpr.fieldNameIndex('rank')  # get fieldindex
