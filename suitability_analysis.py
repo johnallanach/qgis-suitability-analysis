@@ -180,15 +180,27 @@ class SuitabilityAnalysis:
             self.iface.removeToolBarIcon(action)
 
 
+    def validateWeights(self):
+        """ checks that input weights sum to 100 """
 
+        weight_sum = 0
+        for row in range(self.dlg.fieldTable.rowCount()):
+            weight_sum += int(float(self.dlg.fieldTable.item(row,3).text()))
 
+        if round(weight_sum) == 100:
+            pass
+        else: 
+            iface.messageBar().pushMessage("Input error",
+                "Field weights must sum to 100",
+                level = Qgis.Critical,
+                duration = 10)
+            return False
 
-
-
+        return True
 
 
     def updateFields(self):
-        """Reload the available fields when layer is changed"""
+        """ reload the available fields when layer is changed """
 
         self.dlg.fieldSelector.clear()
         self.dlg.fieldTable.clearContents()
@@ -197,8 +209,8 @@ class SuitabilityAnalysis:
             self.dlg.layerInput.currentLayer().fields() if x.isNumeric()])
 
 
-    def populateFields(self):
-        """Populate QTableWidget that shows the fields to be analysed. 
+    def populateTable(self):
+        """ populate QTableWidget that shows the fields to be analysed. 
         Called after user clicks the "Add selected fields" button"""
 
         selected_fields = self.dlg.fieldSelector.selectedItems()
@@ -235,7 +247,7 @@ class SuitabilityAnalysis:
 
 
     def fetchCriteria(self):
-
+        """ get suitability criteria from input form """
         self.criteria = {}
 
         for row in range(self.dlg.fieldTable.rowCount()):
@@ -247,213 +259,10 @@ class SuitabilityAnalysis:
                 "weight": int(float(self.dlg.fieldTable.item(row,3).text())),
                 "effect": self.dlg.fieldTable.item(row,4).text()
             }
-        
-        #return criteria
 
 
-    def validateWeights(self):
-        """Checks that input weights sum to 100"""
-
-        weight_sum = 0
-        for row in range(self.dlg.fieldTable.rowCount()):
-            weight_sum += int(self.dlg.fieldTable.item(row,3).text())
-
-        if weight_sum == 100:
-            pass
-        else: 
-            iface.messageBar().pushMessage("Input error",
-                "Field weights must sum to 100",
-                level = Qgis.Critical,
-                duration = 10)
-            return False
-
-        return True
-
-
-    def trimThresholds(self):
-        """Removes features that are below or above the
-        lower or upper thresholds"""
-
-        layer = self.dlg.layerInput.currentLayer()
-        vpr = layer.dataProvider()
-
-        for row in range(self.dlg.fieldTable.rowCount()):
-            field_name = self.dlg.fieldTable.item(row,0).text()
-            lower = int(float(self.dlg.fieldTable.item(row,1).text()))
-            upper = int(float(self.dlg.fieldTable.item(row,2).text()))
-
-            with edit(layer):
-                for feature in layer.getFeatures():
-                    feature_value = int(float(feature[field_name]))
-                    if (feature_value > upper or 
-                        feature_value < lower):
-                        vpr.deleteFeatures([feature.id()])
-
-
-
-
-
-
-
-    def createTempFields(self):
-        """Creates temporary calculation fields"""
-
-        layer = self.dlg.layerInput.currentLayer()
-        vpr = layer.dataProvider()
-
-        for row in range(self.dlg.fieldTable.rowCount()):
-            field_name = self.dlg.fieldTable.item(row,0).text()
-            score_field = field_name + "_s"              
-
-            with edit(layer):
-                vpr.addAttributes([QgsField(score_field, QVariant.Double)])
-                layer.updateFields()
-
-
-    def standardizeFields(self):
-        """Main calculations to standardize the selected fields"""
-
-        layer = self.dlg.layerInput.currentLayer()
-
-        for row in range(self.dlg.fieldTable.rowCount()):
-            field_name = self.dlg.fieldTable.item(row,0).text()
-            score_field = field_name + "_s"  
-            field_index = layer.fields().lookupField(field_name)
-            maxValue = layer.maximumValue(field_index)
-            minValue = layer.minimumValue(field_index)  
-
-            weight = float(self.dlg.fieldTable.item(row,3).text())  
-            effect = self.dlg.fieldTable.item(row,4).text()           
-
-            with edit(layer):
-                if effect == "+":
-                    for feature in layer.getFeatures():
-                        score = float((feature[field_name]-minValue)/(maxValue-minValue))
-                        weighted_score = score * weight
-                        feature.setAttribute(feature.fieldNameIndex(score_field), 
-                            weighted_score)
-                        layer.updateFeature(feature) 
-                elif effect == "-":
-                    for feature in layer.getFeatures():
-                        score = float((maxValue-feature[field_name])/(maxValue-minValue))
-                        weighted_score = score * weight
-                        feature.setAttribute(feature.fieldNameIndex(score_field), 
-                            weighted_score)
-                        layer.updateFeature(feature) 
-                else:
-                    pass
-            
-
-    def calculateAggregateScore(self):
-        """sums the individual field scores"""
-        layer = self.dlg.layerInput.currentLayer()
-        vpr = layer.dataProvider()
-
-        score_field_list  = []
-        
-        for row in range(self.dlg.fieldTable.rowCount()):
-            field_name = self.dlg.fieldTable.item(row,0).text()
-            score_field = field_name + "_s"  
-            score_field_list.append(score_field)
-             
-        with edit(layer):
-            vpr.addAttributes([QgsField('score', QVariant.Double)])
-            layer.updateFields()
-
-            for feature in layer.getFeatures():
-                aggregate_score = 0
-                for i_score in score_field_list: 
-                    score = feature.attribute(feature.fieldNameIndex(i_score))
-                    aggregate_score += score
-
-                feature.setAttribute(feature.fieldNameIndex('score'), 
-                            aggregate_score)
-                layer.updateFeature(feature)
-
-            layer.updateFields()
-
-
-    def calculateFinalRank(self):
-        """final ordinal ranking"""
-        layer = self.dlg.layerInput.currentLayer()
-        vpr = layer.dataProvider()
-             
-        with edit(layer):
-            vpr.addAttributes([QgsField('rank', QVariant.Double)])
-            layer.updateFields()
-
-            # create list of tuples of score and feature-id
-            feat_list = [( feat.attribute(feat.fieldNameIndex('score') ), 
-                            feat.id()) for feat in layer.getFeatures()]
-            feat_list.sort(reverse=True)  # sort list of tuples
-
-            i = 1
-            fni = vpr.fieldNameIndex('rank')  # get fieldindex
-            
-            for feat in feat_list:
-                layer.changeAttributeValue(feat[1], fni, i)  # change field value
-                i += 1
-
-
-    def deleteTempFields(self):
-        """deletes the _s fields"""
-        layer = self.dlg.layerInput.currentLayer()
-        vpr = layer.dataProvider()
-
-        sfi_list  = []
-        
-        for row in range(self.dlg.fieldTable.rowCount()):
-            field_name = self.dlg.fieldTable.item(row,0).text()
-            score_field = field_name + "_s"  
-            score_field_index = vpr.fieldNameIndex(score_field)
-            sfi_list.append(score_field_index)
-
-        vpr.deleteAttributes(sfi_list)
-        layer.updateFields()
-
-
-
-    def pandify(self, layer):
-
-        #layer = self.dlg.layerInput.currentLayer()
-        #vpr = layer.dataProvider()
-
-        # list columns to include in the dataframe
-        #cols = [f.name() for f in layer.fields()] 
-        cols = [f for f in self.criteria] 
-        cols.append('FID')
-
-        # generator to yield one row at a time
-        datagen = ([f[col] for col in cols] for f in layer.getFeatures())
-
-        # create dataframe
-        df = pd.DataFrame.from_records(data=datagen, columns=cols)
-
-        return df
-
-
-    def calculations(self, df):
-
-        criteria = self.criteria
-
-        for field in criteria: 
-            lower = criteria[field]['lower']
-            upper = criteria[field]['upper']
-            weight = criteria[field]['weight']
-            effect = criteria[field]['effect']
-
-            df = df[df[field] >= lower]
-            df = df[df[field] <= upper]
-
-        df['score'] = 50
-        df['rank'] = 51
-        #df['rank'] = df['noise_km'] * lower
-
-        return df
-
-
-    def outputLayer(self):
-
+    def createOutputLayer(self):
+        """ create output memory layer """
         # get input layer information 
         layer = self.dlg.layerInput.currentLayer()
         layer_type = {'0':'Point', '1':'LineString', '2':'Polygon'}
@@ -474,21 +283,70 @@ class SuitabilityAnalysis:
         feats = [feat for feat in layer.getFeatures()]
         mem_layer_data.addFeatures(feats)
 
-        return mem_layer
+        self.outputLayer = mem_layer
 
 
-    def updateSHP(self, df, layer):
+    def pandify(self):
+        """ create pandas dataframe for numerical processing """
+        # list columns to include in the dataframe
+        cols = [f for f in self.criteria] 
+        cols.append('FID')
 
-        #layer = self.dlg.layerInput.currentLayer()
-        vpr = layer.dataProvider()            
+        # generator to yield one row at a time
+        datagen = ([f[col] for col in cols] for f in self.outputLayer.getFeatures())
 
-        with edit(layer):
+        # create dataframe
+        self.df = pd.DataFrame.from_records(data=datagen, columns=cols)
+
+
+    def calculations(self):
+        """ normalize data & calcuate score and rank """
+        df = self.df
+        criteria = self.criteria
+
+        aggregate_score = 0
+        for field in criteria: 
+            lower = criteria[field]['lower']
+            upper = criteria[field]['upper']
+            weight = criteria[field]['weight']
+            effect = criteria[field]['effect']
+
+            # trim df by lower/upper bounds
+            df = df[df[field] >= lower]
+            df = df[df[field] <= upper]
+            
+            # normalize data
+            max_value = df[field].max()
+            min_value = df[field].min()
+            if effect == "+":
+                df[field] = (df[field] - min_value) / (max_value - min_value)
+            elif effect == "-":
+                df[field] = (max_value - df[field]) / (max_value - min_value)
+            else:
+                pass
+
+            # calculate weighted score
+            weighted_score = df[field] * weight
+            aggregate_score += weighted_score
+
+        df['score'] = aggregate_score
+        df['rank'] = df['score'].rank(ascending=False)
+
+        self.df = df
+
+
+    def updateSHP(self):
+        """ merge dataframe back into memory layer """
+
+        vpr = self.outputLayer.dataProvider()            
+
+        with edit(self.outputLayer):
             vpr.addAttributes([QgsField('score', QVariant.Double)])
             vpr.addAttributes([QgsField('rank', QVariant.Double)])
-            layer.updateFields()
+            self.outputLayer.updateFields()
 
             feat_list = [( feat.attribute(feat.fieldNameIndex('FID') ), 
-                            feat.id()) for feat in layer.getFeatures()]
+                            feat.id()) for feat in self.outputLayer.getFeatures()]
 
             score_field = vpr.fieldNameIndex('score')
             rank_field = vpr.fieldNameIndex('rank')
@@ -496,20 +354,24 @@ class SuitabilityAnalysis:
             for feat in feat_list:
                 try:
                     fid = feat[0]
-                    score_value = float(df.loc[df['FID']==fid]['score'])
-                    rank_value = float(df.loc[df['FID']==fid]['rank'])
-                    layer.changeAttributeValue(feat[1], score_field, score_value)
-                    layer.changeAttributeValue(feat[1], rank_field, rank_value)
+                    score_value = float(self.df.loc[self.df['FID']==fid]['score'])
+                    rank_value = float(self.df.loc[self.df['FID']==fid]['rank'])
+                    self.outputLayer.changeAttributeValue(feat[1], score_field, score_value)
+                    self.outputLayer.changeAttributeValue(feat[1], rank_field, rank_value)
                 except:
-                    layer.changeAttributeValue(feat[1], score_field, fid)
-                    layer.changeAttributeValue(feat[1], rank_field, fid)
-            #layer.updateFields()
-        
-        return layer
+                    vpr.deleteFeatures([ fid ])
+                    #self.outputLayer.changeAttributeValue(feat[1], score_field, 0)
+                    #self.outputLayer.changeAttributeValue(feat[1], rank_field, 1.7976931348623158e+308)
+
+
+    def addOutputLayerToMap(self):
+        """ add memory layer to map """
+        suitability_output = self.outputLayer
+        QgsProject.instance().addMapLayer(suitability_output)
 
 
     def run(self):
-        """run method that performs all the real work"""   
+        """ run method that performs all the real work """   
 
         startTime = time.time()
 
@@ -532,12 +394,10 @@ class SuitabilityAnalysis:
         self.dlg.fieldSelector.setSelectionMode(QAbstractItemView.MultiSelection)
         
         # populate table with selected fields
-        self.dlg.addFields.clicked.connect(self.populateFields)
+        self.dlg.addFields.clicked.connect(self.populateTable)
 
         # reset form
         self.dlg.addFields_2.clicked.connect(self.updateFields)
-
-        #self.dlg.fieldTable.item(row,3).itemChanged.connect(self.updateFields)
 
         # Run the dialog event loop
         result = self.dlg.exec_()
@@ -545,27 +405,18 @@ class SuitabilityAnalysis:
         if result:
 
             #if self.validateWeights() == True:
-            
-            #self.trimThresholds()
-            #self.createTempFields()
-            #self.standardizeFields()
-            #self.calculateAggregateScore()
-            #self.calculateFinalRank()
-            #self.deleteTempFields()
 
             self.fetchCriteria()
-            suitability_output = self.outputLayer()
-            
-            df = self.pandify(suitability_output)
-            df = self.calculations(df)
-            suitability_output = self.updateSHP(df, suitability_output)
+            self.createOutputLayer()
+            self.pandify()
+            self.calculations()
+            self.updateSHP()
+            self.addOutputLayerToMap()
 
-            # add memory layer to map
-            QgsProject.instance().addMapLayer(suitability_output)
-
-            executionTime = str(round((time.time() - startTime), 2))
+            #executionTime = str(round((time.time() - startTime), 2))
 
             iface.messageBar().pushMessage("Success",
-                "Suitability analysis completed in " + executionTime + " ms.",
+                "Suitability analysis completed.",
+                #"Suitability analysis completed in " + executionTime + " s.",
                 level = Qgis.Success,
                 duration = 10)
